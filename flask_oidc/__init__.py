@@ -717,7 +717,7 @@ class OpenIDConnect(object):
 
         # make a request to IdP to exchange the auth code for OAuth credentials
         flow = self._flow_for_request()
-        credentials = flow.step2_exchange(code)
+        credentials = flow.step2_exchange(code, http=self._get_http())
         id_token = credentials.id_token
         if not self._is_id_token_valid(id_token):
             logger.debug("Invalid ID token")
