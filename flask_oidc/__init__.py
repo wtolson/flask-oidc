@@ -139,6 +139,8 @@ class OpenIDConnect(object):
         app.config.setdefault('OIDC_ID_TOKEN_COOKIE_NAME', 'oidc_id_token')
         app.config.setdefault('OIDC_ID_TOKEN_COOKIE_PATH', '/')
         app.config.setdefault('OIDC_ID_TOKEN_COOKIE_TTL', 7 * 86400)  # 7 days
+        app.config.setdefault('OIDC_KEY_FILE', None)
+        app.config.setdefault('OIDC_CERT_FILE', None)
         # should ONLY be turned off for local debugging
         app.config.setdefault('OIDC_COOKIE_SECURE', True)
         app.config.setdefault('OIDC_VALID_ISSUERS',
@@ -309,7 +311,7 @@ class OpenIDConnect(object):
         if '_oidc_userinfo' in g:
             return g._oidc_userinfo
 
-        http = httplib2.Http()
+        http = self._get_http()
         if access_token is None:
             try:
                 credentials = OAuth2Credentials.from_json(
@@ -448,7 +450,7 @@ class OpenIDConnect(object):
 
             # refresh and store credentials
             try:
-                credentials.refresh(httplib2.Http())
+                credentials.refresh(self._get_http())
                 if credentials.id_token:
                     id_token = credentials.id_token
                 else:
@@ -907,7 +909,7 @@ class OpenIDConnect(object):
         if hint != 'none':
             request['token_type_hint'] = hint
 
-        auth_method = current_app.config['OIDC_INTROSPECTION_AUTH_METHOD'] 
+        auth_method = current_app.config['OIDC_INTROSPECTION_AUTH_METHOD']
         if (auth_method == 'client_secret_basic'):
             basic_auth_string = '%s:%s' % (self.client_secrets['client_id'], self.client_secrets['client_secret'])
             basic_auth_bytes = bytearray(basic_auth_string, 'utf-8')
@@ -919,8 +921,15 @@ class OpenIDConnect(object):
             if self.client_secrets['client_secret'] is not None:
                 request['client_secret'] = self.client_secrets['client_secret']
 
-        resp, content = httplib2.Http().request(
+        resp, content = self._get_http().request(
             self.client_secrets['token_introspection_uri'], 'POST',
             urlencode(request), headers=headers)
         # TODO: Cache this reply
         return _json_loads(content)
+
+    def _get_http(self):
+        http = httplib2.Http()
+        if current_app.config['OIDC_KEY_FILE'] and current_app.config['OIDC_CERT_FILE']:
+            http.certificates.add(
+                current_app.config['OIDC_KEY_FILE'], current_app.config['OIDC_CERT_FILE'])
+        return http
